@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WorkCheck</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <section class="brand">
+        <h1>WorkCheck</h1>
+        <p>เช็กงานคนเยอะๆ ให้รู้ทันทีว่าใครทำแล้ว ใครยังไม่ทำ ใครจ่ายแล้ว</p>
+      </section>
+      <section class="actions">
+        <button class="btn-light" id="exportBtn">ส่งออก CSV</button>
+        <button class="btn-light" id="resetSeedBtn">รีเซ็ตข้อมูลเริ่มต้น</button>
+        <button class="btn-danger" id="clearBtn">ล้างข้อมูล</button>
+      </section>
+    </header>
+
+    <section class="stats" aria-label="สรุปงาน">
+      <article class="stat"><span>ทั้งหมด</span><strong id="totalCount">0</strong></article>
+      <article class="stat"><span>Web เสร็จ</span><strong id="webDoneCount">0</strong></article>
+      <article class="stat"><span>Blog เสร็จ</span><strong id="blogDoneCount">0</strong></article>
+      <article class="stat"><span>งานยังไม่เสร็จ</span><strong id="activeCount">0</strong></article>
+      <article class="stat"><span>ยังไม่จ่าย</span><strong id="unpaidCount">0</strong></article>
+      <article class="stat"><span>จ่ายบางส่วน</span><strong id="partialCount">0</strong></article>
+    </section>
+
+    <section class="quick-filters" aria-label="ตัวกรองเร็ว">
+      <button class="quick-filter active" type="button" data-quick="all">ทั้งหมด</button>
+      <button class="quick-filter" type="button" data-quick="unpaid">ยังไม่จ่าย</button>
+      <button class="quick-filter" type="button" data-quick="partial">จ่ายบางส่วน</button>
+      <button class="quick-filter" type="button" data-quick="active">งานยังไม่เสร็จ</button>
+      <button class="quick-filter" type="button" data-quick="web_done_blog_active">Web เสร็จ / Blog ยัง</button>
+      <button class="quick-filter" type="button" data-quick="both_hired">จ้างทั้งสองงาน</button>
+    </section>
+
+    <section class="layout">
+      <aside class="card">
+        <div class="card-head">
+          <h2 id="formTitle">เพิ่มคน / งาน</h2>
+        </div>
+        <form id="workForm">
+          <input type="hidden" id="editId" />
+          <label>
+            ชื่อคนทำงาน
+            <input id="nameInput" required placeholder="เช่น บอส" />
+          </label>
+          <section class="task-fields" aria-label="แยกงาน">
+            <div class="task-grid">
+              <label class="task-card">
+                <span class="task-title">งาน Web</span>
+                <div class="custom-select" data-select="webStatusInput"></div>
+                <select id="webStatusInput" class="select-native" aria-label="สถานะงาน Web">
+                  <option value="not_hired">ไม่จ้าง</option>
+                  <option value="todo">ยังไม่ทำ</option>
+                  <option value="doing">จ้าง</option>
+                  <option value="done">เสร็จ</option>
+                  <option value="issue">มีปัญหา</option>
+                </select>
+              </label>
+              <label class="task-card">
+                <span class="task-title">งาน Blog</span>
+                <div class="custom-select" data-select="blogStatusInput"></div>
+                <select id="blogStatusInput" class="select-native" aria-label="สถานะงาน Blog">
+                  <option value="not_hired">ไม่จ้าง</option>
+                  <option value="todo">ยังไม่ทำ</option>
+                  <option value="doing">จ้าง</option>
+                  <option value="done">เสร็จ</option>
+                  <option value="issue">มีปัญหา</option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <label>
+            ช่องทางติดต่อ
+            <input id="contactInput" placeholder="Line, เบอร์, Facebook" />
+          </label>
+          <label>
+            สถานะจ่ายเงิน
+            <div class="custom-select" data-select="paymentInput"></div>
+            <select id="paymentInput" class="select-native" aria-label="สถานะจ่ายเงิน">
+              <option value="unpaid">ยังไม่จ่าย</option>
+              <option value="partial">จ่ายบางส่วน</option>
+              <option value="paid">จ่ายแล้ว</option>
+            </select>
+          </label>
+          <label>
+            หมายเหตุ
+            <textarea id="noteInput" placeholder="เช่น จ่ายบางส่วน 20 / รอโอน / ส่งครบแล้ว"></textarea>
+          </label>
+          <button class="btn-primary" type="submit" id="submitBtn">บันทึก</button>
+          <button class="btn-light hidden" type="button" id="cancelEditBtn">ยกเลิกแก้ไข</button>
+          <p class="hint">ข้อมูลจะถูกเก็บไว้ในเครื่องนี้ด้วย localStorage รีเฟรชหน้าแล้วไม่หาย</p>
+        </form>
+      </aside>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>รายการงาน</h2>
+        </div>
+        <div class="toolbar">
+          <input id="searchInput" placeholder="ค้นหาชื่อ งาน หรือหมายเหตุ" />
+          <div class="custom-select" data-select="filterInput"></div>
+          <select id="filterInput" class="select-native" aria-label="กรองสถานะงาน">
+            <option value="all">ทุกสถานะ</option>
+            <option value="not_hired">ไม่จ้าง</option>
+            <option value="todo">ยังไม่ทำ</option>
+            <option value="doing">กำลังทำ</option>
+            <option value="done">ทำแล้ว</option>
+            <option value="issue">มีปัญหา</option>
+          </select>
+          <div class="custom-select" data-select="paymentFilterInput"></div>
+          <select id="paymentFilterInput" class="select-native" aria-label="กรองสถานะจ่ายเงิน">
+            <option value="all">ทุกการจ่าย</option>
+            <option value="paid">จ่ายแล้ว</option>
+            <option value="partial">จ่ายบางส่วน</option>
+            <option value="unpaid">ยังไม่จ่าย</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ชื่อ</th>
+                <th>งาน</th>
+                <th>จ่ายเงิน</th>
+                <th>หมายเหตุ</th>
+                <th>จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="workTable"></tbody>
+          </table>
+          <div class="empty hidden" id="emptyState">ยังไม่มีรายการ หรือไม่พบข้อมูลที่ค้นหา</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "workcheck.items.v6";
+    const LEGACY_KEYS = ["workcheck.items.v5", "workcheck.items.v4", "workcheck.items.v3", "workcheck.items.v2", "workcheck.items.v1"];
+    const seedItems = [
+      { name: "แกรม", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "เบส", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "นพ", contact: "", webStatus: "done", blogStatus: "done", payment: "partial", note: "จ่ายบางส่วน 20" },
+      { name: "ฟิม", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "บู", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "บีม", contact: "", webStatus: "done", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "ต้า", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "ซี", contact: "", webStatus: "done", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "หนึ่ง", contact: "", webStatus: "done", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "ใต้", contact: "", webStatus: "done", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "ฟลุ๊ค", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "หนึ่งหญิง", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "เบ้น", contact: "", webStatus: "done", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "ชนิ", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "คูณ", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "ต๊ะ", contact: "", webStatus: "doing", blogStatus: "doing", payment: "paid", note: "" },
+      { name: "ปอย", contact: "", webStatus: "doing", blogStatus: "done", payment: "paid", note: "" },
+      { name: "มุก", contact: "", webStatus: "doing", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "หอม", contact: "", webStatus: "done", blogStatus: "done", payment: "paid", note: "" },
+      { name: "อาร์ม", contact: "", webStatus: "doing", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "ชาย", contact: "", webStatus: "not_hired", blogStatus: "done", payment: "unpaid", note: "จ่ายเที่ยง" },
+      { name: "วา", contact: "", webStatus: "doing", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "อิ้ง1", contact: "", webStatus: "doing", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "ก้อง", contact: "", webStatus: "doing", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "เปรี้ยว", contact: "", webStatus: "doing", blogStatus: "not_hired", payment: "paid", note: "" },
+      { name: "ฐิ", contact: "", webStatus: "doing", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "อิ้ง2", contact: "", webStatus: "doing", blogStatus: "done", payment: "unpaid", note: "" },
+      { name: "เค้ก", contact: "", webStatus: "doing", blogStatus: "doing", payment: "paid", note: "" },
+      { name: "หวาน", contact: "", webStatus: "doing", blogStatus: "doing", payment: "paid", note: "" },
+      { name: "น้ำ", contact: "", webStatus: "doing", blogStatus: "doing", payment: "paid", note: "" },
+      { name: "เอม", contact: "", webStatus: "doing", blogStatus: "doing", payment: "paid", note: "" },
+      { name: "มาย", contact: "", webStatus: "doing", blogStatus: "doing", payment: "paid", note: "" },
+      { name: "เขรม", contact: "", webStatus: "doing", blogStatus: "not_hired", payment: "unpaid", note: "" }
+    ];
+    const statusMap = {
+      all: { label: "ทุกสถานะ", className: "" },
+      not_hired: { label: "ไม่จ้าง", className: "status-not-hired" },
+      todo: { label: "ยังไม่ทำ", className: "status-todo" },
+      doing: { label: "จ้าง", className: "status-doing" },
+      done: { label: "เสร็จ", className: "status-done" },
+      issue: { label: "มีปัญหา", className: "status-issue" }
+    };
+    const summaryStatusMap = {
+      all: { label: "ทุกสถานะ", className: "" },
+      not_hired: { label: "ไม่จ้าง", className: "status-not-hired" },
+      todo: { label: "ยังไม่ทำ", className: "status-todo" },
+      doing: { label: "กำลังทำ", className: "status-doing" },
+      done: { label: "ทำแล้ว", className: "status-done" },
+      issue: { label: "มีปัญหา", className: "status-issue" }
+    };
+    const paymentMap = {
+      all: { label: "ทุกการจ่าย", className: "" },
+      paid: { label: "จ่ายแล้ว", className: "pay-paid" },
+      partial: { label: "จ่ายบางส่วน", className: "pay-partial" },
+      unpaid: { label: "ยังไม่จ่าย", className: "pay-unpaid" }
+    };
+
+    let items = loadItems();
+    let quickFilter = "all";
+    const customSelects = new Map();
+
+    const form = document.getElementById("workForm");
+    const editId = document.getElementById("editId");
+    const nameInput = document.getElementById("nameInput");
+    const webStatusInput = document.getElementById("webStatusInput");
+    const blogStatusInput = document.getElementById("blogStatusInput");
+    const contactInput = document.getElementById("contactInput");
+    const paymentInput = document.getElementById("paymentInput");
+    const noteInput = document.getElementById("noteInput");
+    const searchInput = document.getElementById("searchInput");
+    const filterInput = document.getElementById("filterInput");
+    const paymentFilterInput = document.getElementById("paymentFilterInput");
+    const table = document.getElementById("workTable");
+    const emptyState = document.getElementById("emptyState");
+    const formTitle = document.getElementById("formTitle");
+    const submitBtn = document.getElementById("submitBtn");
+    const cancelEditBtn = document.getElementById("cancelEditBtn");
+
+    function getSeedItems() {
+      const now = getThaiDateTime();
+      return seedItems.map(item => ({ ...item, id: crypto.randomUUID(), updatedAt: now }));
+    }
+
+    function parseLegacySubStatus(note, label) {
+      const match = String(note || "").match(new RegExp(`${label}:\\s*([^|]+)`));
+      const value = match ? match[1].trim() : "";
+      if (value.includes("ไม่จ้าง") || value.includes("--")) return "not_hired";
+      if (value.includes("เสร็จ") || value.includes("ทำแล้ว")) return "done";
+      if (value.includes("จ้าง") || value.includes("กำลัง")) return "doing";
+      if (value.includes("ปัญหา")) return "issue";
+      if (value.includes("ยังไม่")) return "todo";
+      return "todo";
+    }
+
+    function normalizeStatusValue(value) {
+      if (["not_hired", "todo", "doing", "done", "issue"].includes(value)) return value;
+      return "todo";
+    }
+
+    function getSummaryStatus(item) {
+      const statuses = [normalizeStatusValue(item.webStatus), normalizeStatusValue(item.blogStatus)];
+      if (statuses.every(status => status === "not_hired")) return "not_hired";
+      if (statuses.some(status => status === "issue")) return "issue";
+      if (statuses.some(status => status === "doing" || status === "todo")) return "doing";
+      if (statuses.some(status => status === "done")) return "done";
+      return "todo";
+    }
+
+    function getWorkSummaryText(item) {
+      const web = statusMap[normalizeStatusValue(item.webStatus)]?.label || "-";
+      const blog = statusMap[normalizeStatusValue(item.blogStatus)]?.label || "-";
+      return `Web ${web} / Blog ${blog}`;
+    }
+
+    function normalizePayment(item) {
+      const value = item.payment;
+      if (["paid", "partial", "unpaid"].includes(value)) return value;
+      const note = String(item.note || "");
+      if (note.includes("บางส่วน") || note.includes("จ่าย: 20") || note.includes("จ่าย:20")) return "partial";
+      if (note.includes("ยังไม่จ่าย")) return "unpaid";
+      if (note.includes("จ่ายแล้ว") || note.includes("จ่าย:")) return "paid";
+      return "unpaid";
+    }
+
+    function cleanLegacyNote(note) {
+      return String(note || "")
+        .replace(/Web:\s*[^|]+\|?\s*/g, "")
+        .replace(/Blog:\s*[^|]+\|?\s*/g, "")
+        .replaceAll("--", "ไม่จ้าง")
+        .replaceAll(" | จ่ายแล้ว", "")
+        .replaceAll(" | ยังไม่จ่าย", "")
+        .replace(/จ่าย:\s*20/g, "จ่ายบางส่วน 20")
+        .replace(/^\|\s*/, "")
+        .trim();
+    }
+
+    function normalizeItems(rawItems) {
+      return rawItems.map(item => {
+        const note = String(item.note || "");
+        const webStatus = normalizeStatusValue(item.webStatus || parseLegacySubStatus(note, "Web") || item.status);
+        const blogStatus = normalizeStatusValue(item.blogStatus || parseLegacySubStatus(note, "Blog") || item.status);
+        return {
+          ...item,
+          task: "Web / Blog",
+          webStatus,
+          blogStatus,
+          status: getSummaryStatus({ webStatus, blogStatus }),
+          payment: normalizePayment(item),
+          note: cleanLegacyNote(note)
+        };
+      });
+    }
+
+    function loadItems() {
+      try {
+        const keys = [STORAGE_KEY, ...LEGACY_KEYS];
+        for (const key of keys) {
+          const stored = JSON.parse(localStorage.getItem(key));
+          if (Array.isArray(stored) && stored.length) {
+            const migrated = normalizeItems(stored);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+            return migrated;
+          }
+        }
+      } catch (error) {
+        return getSeedItems();
+      }
+      const seeded = getSeedItems();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+      return seeded;
+    }
+
+    function saveItems() {
+      items = normalizeItems(items);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function optionLabel(option) {
+      return option?.textContent?.trim() || "";
+    }
+
+    function closeAllSelects(exceptRoot) {
+      customSelects.forEach(({ root, button }) => {
+        if (root !== exceptRoot) {
+          root.classList.remove("open");
+          button.setAttribute("aria-expanded", "false");
+        }
+      });
+    }
+
+    function closeAllQuickMenus(exceptRoot) {
+      document.querySelectorAll(".quick-action-wrap.open").forEach(root => {
+        if (root !== exceptRoot) root.classList.remove("open");
+      });
+    }
+
+    function syncCustomSelect(select) {
+      const custom = customSelects.get(select.id);
+      if (!custom) return;
+      const selected = select.options[select.selectedIndex];
+      const label = optionLabel(selected);
+      custom.root.dataset.value = select.value;
+      custom.label.textContent = label;
+      custom.options.forEach(option => {
+        const isSelected = option.dataset.value === select.value;
+        option.classList.toggle("selected", isSelected);
+        option.setAttribute("aria-selected", String(isSelected));
+      });
+    }
+
+    function createCustomSelect(root) {
+      const select = document.getElementById(root.dataset.select);
+      if (!select) return;
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "select-button";
+      button.setAttribute("aria-haspopup", "listbox");
+      button.setAttribute("aria-expanded", "false");
+      button.innerHTML = `
+        <span class="select-current">
+          <span class="select-dot"></span>
+          <span class="select-label"></span>
+        </span>
+        <span class="select-arrow"></span>
+      `;
+
+      const menu = document.createElement("ul");
+      menu.className = "select-menu";
+      menu.setAttribute("role", "listbox");
+
+      const optionNodes = Array.from(select.options).map(option => {
+        const item = document.createElement("li");
+        item.className = "select-option";
+        item.dataset.value = option.value;
+        item.setAttribute("role", "option");
+        item.innerHTML = `<span class="select-dot"></span><span>${escapeHtml(optionLabel(option))}</span>`;
+        item.addEventListener("click", () => {
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          root.classList.remove("open");
+          button.setAttribute("aria-expanded", "false");
+          button.focus();
+        });
+        menu.appendChild(item);
+        return item;
+      });
+
+      function setOpen(isOpen) {
+        root.classList.toggle("open", isOpen);
+        button.setAttribute("aria-expanded", String(isOpen));
+      }
+
+      button.addEventListener("click", () => {
+        const willOpen = !root.classList.contains("open");
+        closeAllSelects(root);
+        closeAllQuickMenus();
+        setOpen(willOpen);
+      });
+
+      button.addEventListener("keydown", event => {
+        const currentIndex = Array.from(select.options).findIndex(option => option.value === select.value);
+        if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+          event.preventDefault();
+          const direction = event.key === "ArrowDown" ? 1 : -1;
+          const nextIndex = Math.max(0, Math.min(select.options.length - 1, currentIndex + direction));
+          select.value = select.options[nextIndex].value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          setOpen(true);
+        }
+        if (["Enter", " "].includes(event.key)) {
+          event.preventDefault();
+          const willOpen = !root.classList.contains("open");
+          closeAllSelects(root);
+          closeAllQuickMenus();
+          root.classList.toggle("open", willOpen);
+          button.setAttribute("aria-expanded", String(willOpen));
+        }
+        if (event.key === "Escape") {
+          root.classList.remove("open");
+          button.setAttribute("aria-expanded", "false");
+        }
+      });
+
+      root.append(button, menu);
+      customSelects.set(select.id, {
+        root,
+        button,
+        label: button.querySelector(".select-label"),
+        options: optionNodes
+      });
+      syncCustomSelect(select);
+    }
+
+    function initCustomSelects() {
+      document.querySelectorAll(".custom-select").forEach(createCustomSelect);
+      document.addEventListener("click", event => {
+        if (!event.target.closest(".custom-select")) closeAllSelects();
+        if (!event.target.closest(".quick-action-wrap")) closeAllQuickMenus();
+      });
+    }
+
+    function isActiveWork(item) {
+      return [item.webStatus, item.blogStatus].some(status => ["todo", "doing", "issue"].includes(status));
+    }
+
+    function isBothHired(item) {
+      return item.webStatus !== "not_hired" && item.blogStatus !== "not_hired";
+    }
+
+    function renderStats() {
+      document.getElementById("totalCount").textContent = items.length;
+      document.getElementById("webDoneCount").textContent = items.filter(item => item.webStatus === "done").length;
+      document.getElementById("blogDoneCount").textContent = items.filter(item => item.blogStatus === "done").length;
+      document.getElementById("activeCount").textContent = items.filter(isActiveWork).length;
+      document.getElementById("unpaidCount").textContent = items.filter(item => item.payment === "unpaid").length;
+      document.getElementById("partialCount").textContent = items.filter(item => item.payment === "partial").length;
+    }
+
+    function matchesQuickFilter(item) {
+      if (quickFilter === "unpaid") return item.payment === "unpaid";
+      if (quickFilter === "partial") return item.payment === "partial";
+      if (quickFilter === "active") return isActiveWork(item);
+      if (quickFilter === "web_done_blog_active") return item.webStatus === "done" && ["todo", "doing", "issue"].includes(item.blogStatus);
+      if (quickFilter === "both_hired") return isBothHired(item);
+      return true;
+    }
+
+    function getFilteredItems() {
+      const keyword = searchInput.value.trim().toLowerCase();
+      const filter = filterInput.value;
+      const paymentFilter = paymentFilterInput.value;
+
+      return items.filter(item => {
+        const summaryStatus = getSummaryStatus(item);
+        const matchesStatus = filter === "all" || summaryStatus === filter || item.webStatus === filter || item.blogStatus === filter;
+        const matchesPayment = paymentFilter === "all" || item.payment === paymentFilter;
+        const searchText = [
+          item.name,
+          "Web",
+          "Blog",
+          item.contact,
+          item.note,
+          statusMap[item.webStatus]?.label,
+          statusMap[item.blogStatus]?.label,
+          getWorkSummaryText(item),
+          summaryStatusMap[summaryStatus]?.label,
+          paymentMap[item.payment]?.label
+        ].join(" ").toLowerCase();
+        const matchesKeyword = !keyword || searchText.includes(keyword);
+        return matchesStatus && matchesPayment && matchesKeyword && matchesQuickFilter(item);
+      });
+    }
+
+    function renderTaskBadge(name, value) {
+      const status = statusMap[value] || statusMap.todo;
+      return `
+        <div class="task-item">
+          <span class="task-name">${name}</span>
+          <span class="badge ${status.className}">${status.label}</span>
+        </div>
+      `;
+    }
+
+    function renderTable() {
+      const filtered = getFilteredItems();
+      table.innerHTML = filtered.map(item => {
+        const payment = paymentMap[item.payment] || paymentMap.unpaid;
+        return `
+          <tr>
+            <td data-label="ชื่อ">
+              <div class="person-name">${escapeHtml(item.name)}</div>
+              <div class="small">${escapeHtml(item.contact || "ไม่มีช่องทางติดต่อ")}</div>
+              <div class="small">อัปเดต: ${escapeHtml(item.updatedAt)}</div>
+            </td>
+            <td data-label="งาน">
+              <div class="task-list">
+                ${renderTaskBadge("Web", item.webStatus)}
+                ${renderTaskBadge("Blog", item.blogStatus)}
+              </div>
+              <div class="small">${escapeHtml(getWorkSummaryText(item))}</div>
+            </td>
+            <td data-label="จ่ายเงิน"><span class="badge ${payment.className}">${payment.label}</span></td>
+            <td data-label="หมายเหตุ">${escapeHtml(item.note || "-")}</td>
+            <td data-label="จัดการ">
+              <div class="row-actions">
+                <div class="quick-action-wrap" id="quick-${item.id}">
+                  <button class="btn-light" type="button" onclick="toggleQuickMenu('${item.id}')">คำสั่งเร็ว</button>
+                  <div class="quick-action-menu">
+                    <button type="button" onclick="quickAllDone('${item.id}')">เสร็จหมด</button>
+                    <button type="button" onclick="quickAllNotHired('${item.id}')">ไม่จ้างหมด</button>
+                    <button type="button" onclick="quickPaid('${item.id}')">จ่ายแล้ว</button>
+                    <button type="button" onclick="quickPartial('${item.id}')">จ่ายบางส่วน</button>
+                  </div>
+                </div>
+                <button class="btn-light" type="button" onclick="editItem('${item.id}')">แก้ไข</button>
+                <button class="btn-danger" type="button" onclick="deleteItem('${item.id}')">ลบ</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+      emptyState.classList.toggle("hidden", filtered.length > 0);
+    }
+
+    function renderQuickFilters() {
+      document.querySelectorAll(".quick-filter").forEach(button => {
+        button.classList.toggle("active", button.dataset.quick === quickFilter);
+      });
+    }
+
+    function render() {
+      renderStats();
+      renderQuickFilters();
+      renderTable();
+    }
+
+    function resetForm() {
+      form.reset();
+      editId.value = "";
+      webStatusInput.value = "not_hired";
+      blogStatusInput.value = "not_hired";
+      paymentInput.value = "unpaid";
+      formTitle.textContent = "เพิ่มคน / งาน";
+      submitBtn.textContent = "บันทึก";
+      cancelEditBtn.classList.add("hidden");
+      syncCustomSelect(webStatusInput);
+      syncCustomSelect(blogStatusInput);
+      syncCustomSelect(paymentInput);
+    }
+
+    function getThaiDateTime() {
+      return new Intl.DateTimeFormat("th-TH", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(new Date());
+    }
+
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const data = {
+        id: editId.value || crypto.randomUUID(),
+        name: nameInput.value.trim(),
+        task: "Web / Blog",
+        contact: contactInput.value.trim(),
+        webStatus: webStatusInput.value,
+        blogStatus: blogStatusInput.value,
+        payment: paymentInput.value,
+        note: noteInput.value.trim(),
+        updatedAt: getThaiDateTime()
+      };
+
+      if (!data.name) return;
+
+      if (editId.value) {
+        items = items.map(item => item.id === editId.value ? data : item);
+      } else {
+        items.unshift(data);
+      }
+
+      saveItems();
+      resetForm();
+      render();
+    });
+
+    window.toggleQuickMenu = function(id) {
+      const root = document.getElementById(`quick-${id}`);
+      if (!root) return;
+      const willOpen = !root.classList.contains("open");
+      closeAllQuickMenus(root);
+      closeAllSelects();
+      root.classList.toggle("open", willOpen);
+    };
+
+    window.editItem = function(id) {
+      const item = items.find(current => current.id === id);
+      if (!item) return;
+      closeAllQuickMenus();
+      editId.value = item.id;
+      nameInput.value = item.name;
+      webStatusInput.value = item.webStatus || "not_hired";
+      blogStatusInput.value = item.blogStatus || "not_hired";
+      contactInput.value = item.contact || "";
+      paymentInput.value = item.payment || "unpaid";
+      noteInput.value = item.note || "";
+      formTitle.textContent = "แก้ไขรายการ";
+      submitBtn.textContent = "บันทึกการแก้ไข";
+      cancelEditBtn.classList.remove("hidden");
+      syncCustomSelect(webStatusInput);
+      syncCustomSelect(blogStatusInput);
+      syncCustomSelect(paymentInput);
+      nameInput.focus();
+    };
+
+    window.deleteItem = function(id) {
+      if (!confirm("ลบรายการนี้ใช่ไหม?")) return;
+      closeAllQuickMenus();
+      items = items.filter(item => item.id !== id);
+      saveItems();
+      render();
+    };
+
+    window.quickAllDone = function(id) {
+      closeAllQuickMenus();
+      items = items.map(item => item.id === id
+        ? { ...item, webStatus: "done", blogStatus: "done", updatedAt: getThaiDateTime() }
+        : item
+      );
+      saveItems();
+      render();
+    };
+
+    window.quickAllNotHired = function(id) {
+      closeAllQuickMenus();
+      items = items.map(item => item.id === id
+        ? { ...item, webStatus: "not_hired", blogStatus: "not_hired", updatedAt: getThaiDateTime() }
+        : item
+      );
+      saveItems();
+      render();
+    };
+
+    window.quickPaid = function(id) {
+      closeAllQuickMenus();
+      items = items.map(item => item.id === id
+        ? { ...item, payment: "paid", updatedAt: getThaiDateTime() }
+        : item
+      );
+      saveItems();
+      render();
+    };
+
+    window.quickPartial = function(id) {
+      closeAllQuickMenus();
+      items = items.map(item => item.id === id
+        ? { ...item, payment: "partial", updatedAt: getThaiDateTime() }
+        : item
+      );
+      saveItems();
+      render();
+    };
+
+    cancelEditBtn.addEventListener("click", resetForm);
+    searchInput.addEventListener("input", renderTable);
+    filterInput.addEventListener("change", () => {
+      syncCustomSelect(filterInput);
+      renderTable();
+    });
+    paymentFilterInput.addEventListener("change", () => {
+      syncCustomSelect(paymentFilterInput);
+      renderTable();
+    });
+    webStatusInput.addEventListener("change", () => syncCustomSelect(webStatusInput));
+    blogStatusInput.addEventListener("change", () => syncCustomSelect(blogStatusInput));
+    paymentInput.addEventListener("change", () => syncCustomSelect(paymentInput));
+    document.querySelectorAll(".quick-filter").forEach(button => {
+      button.addEventListener("click", () => {
+        quickFilter = button.dataset.quick || "all";
+        render();
+      });
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      if (!items.length || !confirm("ล้างข้อมูลทั้งหมดใช่ไหม?")) return;
+      items = [];
+      saveItems();
+      resetForm();
+      render();
+    });
+
+    document.getElementById("resetSeedBtn").addEventListener("click", () => {
+      if (!confirm("รีเซ็ตกลับเป็นข้อมูลเริ่มต้น 33 รายการใช่ไหม? ข้อมูลที่แก้ไว้จะถูกแทนที่")) return;
+      items = getSeedItems();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      resetForm();
+      render();
+    });
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      if (!items.length) {
+        alert("ยังไม่มีข้อมูลให้ส่งออก");
+        return;
+      }
+
+      const headers = ["ชื่อ", "Web", "Blog", "ติดต่อ", "สถานะรวม", "สถานะจ่ายเงิน", "หมายเหตุ", "อัปเดตล่าสุด"];
+      const rows = items.map(item => {
+        const summaryStatus = getSummaryStatus(item);
+        return [
+          item.name,
+          statusMap[item.webStatus]?.label || item.webStatus,
+          statusMap[item.blogStatus]?.label || item.blogStatus,
+          item.contact,
+          summaryStatusMap[summaryStatus]?.label || summaryStatus,
+          paymentMap[item.payment]?.label || item.payment,
+          item.note,
+          item.updatedAt
+        ];
+      });
+      const csv = [headers, ...rows]
+        .map(row => row.map(value => `"${String(value || "").replaceAll('"', '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "workcheck.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    initCustomSelects();
+    saveItems();
+    render();
+  </script>
+</body>
+</html>
