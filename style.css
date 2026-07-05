@@ -637,9 +637,10 @@ td { font-size: 14px; }
   position: fixed;
   inset: 0;
   z-index: 100;
-  display: grid;
-  place-items: center;
-  padding: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(24px, 10vh, 90px) 18px 18px;
   background: rgba(15, 23, 42, 0.46);
   backdrop-filter: blur(10px);
 }
