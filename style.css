@@ -53,6 +53,8 @@ body::before {
   mask-image: linear-gradient(to bottom, black, transparent 78%);
 }
 
+body.modal-open { overflow: hidden; }
+
 .app {
   position: relative;
   width: min(1180px, calc(100% - 32px));
@@ -631,6 +633,84 @@ td { font-size: 14px; }
   background: rgba(239, 246, 255, 0.72);
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(10px);
+}
+
+.modal {
+  width: min(430px, 100%);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 28px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.94)),
+    linear-gradient(120deg, rgba(37, 99, 235, 0.12), rgba(219, 39, 119, 0.08));
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+}
+
+.modal-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fee2e2, #ede9fe);
+  color: #991b1b;
+  font-weight: 900;
+  font-size: 15px;
+}
+
+.modal-content h3 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.4px;
+}
+
+.modal-content p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.modal-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 120;
+  max-width: min(360px, calc(100% - 36px));
+  padding: 13px 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #dcfce7, #eff6ff);
+  color: #166534;
+  border: 1px solid rgba(22, 163, 74, 0.22);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  font-weight: 850;
+}
+
+.toast-danger {
+  background: linear-gradient(135deg, #fee2e2, #fff7ed);
+  color: #991b1b;
+  border-color: rgba(220, 38, 38, 0.18);
+}
+
 .hidden { display: none; }
 
 @media (max-width: 1050px) {
@@ -706,6 +786,10 @@ td { font-size: 14px; }
   button { width: 100%; }
   .select-button { width: 100%; }
   .quick-filters { display: grid; grid-template-columns: 1fr 1fr; }
+  .modal { grid-template-columns: minmax(0, 1fr); }
+  .modal-icon { width: 48px; height: 48px; }
+  .modal-actions { display: grid; grid-template-columns: 1fr; }
+  .toast { left: 10px; right: 10px; bottom: 10px; max-width: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

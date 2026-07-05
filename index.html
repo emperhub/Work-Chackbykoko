@@ -140,6 +140,22 @@
     </section>
   </main>
 
+  <div class="modal-backdrop hidden" id="confirmModal" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+      <div class="modal-icon" id="confirmIcon">?</div>
+      <div class="modal-content">
+        <h3 id="confirmTitle">ยืนยันการทำรายการ</h3>
+        <p id="confirmMessage">ต้องการทำรายการนี้ใช่ไหม?</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-light" type="button" id="confirmCancelBtn">ยกเลิก</button>
+        <button class="btn-danger" type="button" id="confirmOkBtn">ยืนยัน</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
   <script>
     const STORAGE_KEY = "workcheck.items.v6";
     const LEGACY_KEYS = ["workcheck.items.v5", "workcheck.items.v4", "workcheck.items.v3", "workcheck.items.v2", "workcheck.items.v1"];
@@ -203,6 +219,8 @@
 
     let items = loadItems();
     let quickFilter = "all";
+    let pendingConfirm = null;
+    let lastFocusedElement = null;
     const customSelects = new Map();
 
     const form = document.getElementById("workForm");
@@ -221,6 +239,13 @@
     const formTitle = document.getElementById("formTitle");
     const submitBtn = document.getElementById("submitBtn");
     const cancelEditBtn = document.getElementById("cancelEditBtn");
+    const confirmModal = document.getElementById("confirmModal");
+    const confirmTitle = document.getElementById("confirmTitle");
+    const confirmMessage = document.getElementById("confirmMessage");
+    const confirmIcon = document.getElementById("confirmIcon");
+    const confirmCancelBtn = document.getElementById("confirmCancelBtn");
+    const confirmOkBtn = document.getElementById("confirmOkBtn");
+    const toast = document.getElementById("toast");
 
     function getSeedItems() {
       const now = getThaiDateTime();
@@ -347,6 +372,44 @@
       document.querySelectorAll(".quick-action-wrap.open").forEach(root => {
         if (root !== exceptRoot) root.classList.remove("open");
       });
+    }
+
+    function showToast(message, type = "success") {
+      toast.textContent = message;
+      toast.className = `toast toast-${type}`;
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => {
+        toast.classList.add("hidden");
+      }, 2200);
+    }
+
+    function openConfirm({ title, message, okText = "ยืนยัน", cancelText = "ยกเลิก", tone = "danger", icon = "!" }) {
+      lastFocusedElement = document.activeElement;
+      confirmTitle.textContent = title;
+      confirmMessage.textContent = message;
+      confirmOkBtn.textContent = okText;
+      confirmCancelBtn.textContent = cancelText;
+      confirmIcon.textContent = icon;
+      confirmOkBtn.className = tone === "danger" ? "btn-danger" : "btn-primary";
+      confirmModal.classList.remove("hidden");
+      confirmModal.setAttribute("aria-hidden", "false");
+      document.body.classList.add("modal-open");
+      confirmCancelBtn.focus();
+
+      return new Promise(resolve => {
+        pendingConfirm = resolve;
+      });
+    }
+
+    function closeConfirm(value) {
+      if (!pendingConfirm) return;
+      const resolve = pendingConfirm;
+      pendingConfirm = null;
+      confirmModal.classList.add("hidden");
+      confirmModal.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("modal-open");
+      if (lastFocusedElement && typeof lastFocusedElement.focus === "function") lastFocusedElement.focus();
+      resolve(value);
     }
 
     function syncCustomSelect(select) {
@@ -609,8 +672,10 @@
 
       if (editId.value) {
         items = items.map(item => item.id === editId.value ? data : item);
+        showToast("บันทึกการแก้ไขแล้ว");
       } else {
         items.unshift(data);
+        showToast("เพิ่มรายการใหม่แล้ว");
       }
 
       saveItems();
@@ -647,12 +712,22 @@
       nameInput.focus();
     };
 
-    window.deleteItem = function(id) {
-      if (!confirm("ลบรายการนี้ใช่ไหม?")) return;
+    window.deleteItem = async function(id) {
+      const item = items.find(current => current.id === id);
+      const ok = await openConfirm({
+        title: "ลบรายการนี้?",
+        message: `รายการของ ${item?.name || "คนนี้"} จะถูกลบออกจากเครื่องนี้`,
+        okText: "ลบรายการ",
+        cancelText: "เก็บไว้ก่อน",
+        tone: "danger",
+        icon: "ลบ"
+      });
+      if (!ok) return;
       closeAllQuickMenus();
       items = items.filter(item => item.id !== id);
       saveItems();
       render();
+      showToast("ลบรายการแล้ว", "danger");
     };
 
     window.quickAllDone = function(id) {
@@ -663,6 +738,7 @@
       );
       saveItems();
       render();
+      showToast("ตั้งงานเป็นเสร็จหมดแล้ว");
     };
 
     window.quickAllNotHired = function(id) {
@@ -673,6 +749,7 @@
       );
       saveItems();
       render();
+      showToast("ตั้งเป็นไม่จ้างหมดแล้ว");
     };
 
     window.quickPaid = function(id) {
@@ -683,6 +760,7 @@
       );
       saveItems();
       render();
+      showToast("ตั้งเป็นจ่ายแล้ว");
     };
 
     window.quickPartial = function(id) {
@@ -693,6 +771,7 @@
       );
       saveItems();
       render();
+      showToast("ตั้งเป็นจ่ายบางส่วนแล้ว");
     };
 
     cancelEditBtn.addEventListener("click", resetForm);
@@ -715,25 +794,47 @@
       });
     });
 
-    document.getElementById("clearBtn").addEventListener("click", () => {
-      if (!items.length || !confirm("ล้างข้อมูลทั้งหมดใช่ไหม?")) return;
+    document.getElementById("clearBtn").addEventListener("click", async () => {
+      if (!items.length) {
+        showToast("ตอนนี้ไม่มีข้อมูลให้ล้าง", "danger");
+        return;
+      }
+      const ok = await openConfirm({
+        title: "ล้างข้อมูลทั้งหมด?",
+        message: "รายการทั้งหมดในเครื่องนี้จะถูกลบออก แต่ยังรีเซ็ตกลับเป็นข้อมูลเริ่มต้นได้",
+        okText: "ล้างทั้งหมด",
+        cancelText: "ยกเลิก",
+        tone: "danger",
+        icon: "ล้าง"
+      });
+      if (!ok) return;
       items = [];
       saveItems();
       resetForm();
       render();
+      showToast("ล้างข้อมูลทั้งหมดแล้ว", "danger");
     });
 
-    document.getElementById("resetSeedBtn").addEventListener("click", () => {
-      if (!confirm("รีเซ็ตกลับเป็นข้อมูลเริ่มต้น 33 รายการใช่ไหม? ข้อมูลที่แก้ไว้จะถูกแทนที่")) return;
+    document.getElementById("resetSeedBtn").addEventListener("click", async () => {
+      const ok = await openConfirm({
+        title: "รีเซ็ตข้อมูลเริ่มต้น?",
+        message: "ข้อมูลปัจจุบันจะถูกแทนที่ด้วยข้อมูลเริ่มต้น 33 รายการ",
+        okText: "รีเซ็ตเลย",
+        cancelText: "ยกเลิก",
+        tone: "primary",
+        icon: "รีเซ็ต"
+      });
+      if (!ok) return;
       items = getSeedItems();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       resetForm();
       render();
+      showToast("รีเซ็ตข้อมูลเริ่มต้นแล้ว");
     });
 
     document.getElementById("exportBtn").addEventListener("click", () => {
       if (!items.length) {
-        alert("ยังไม่มีข้อมูลให้ส่งออก");
+        showToast("ยังไม่มีข้อมูลให้ส่งออก", "danger");
         return;
       }
 
@@ -761,6 +862,17 @@
       link.download = "workcheck.csv";
       link.click();
       URL.revokeObjectURL(url);
+      showToast("ส่งออก CSV แล้ว");
+    });
+
+    confirmCancelBtn.addEventListener("click", () => closeConfirm(false));
+    confirmOkBtn.addEventListener("click", () => closeConfirm(true));
+    confirmModal.addEventListener("click", event => {
+      if (event.target === confirmModal) closeConfirm(false);
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && pendingConfirm) closeConfirm(false);
+      if (event.key === "Enter" && pendingConfirm && confirmModal.contains(document.activeElement)) closeConfirm(true);
     });
 
     initCustomSelects();
